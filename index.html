@@ -1125,23 +1125,34 @@ function renderTodayStatus() {
 
 // ----- MAIN ACTIVITY ENTRY POINTS -----
 var _engQuizUrl = null;
-function loadEngQuizFrame(){
+var _engQuizGrade = undefined;
+function loadEngQuizFrame(gradeOverride){
   var fr = document.getElementById('engQuizFrame');
-  if(!fr || _engQuizUrl) return;
+  if(!fr) return;
+  if(_engQuizUrl && _engQuizGrade === gradeOverride) return;
   var tpl = document.getElementById('quizDocTemplate');
   if(!tpl) return;
   var raw = tpl.textContent || '';
   var html = raw.split('@@ENDSCRIPT@@').join('<'+'/script>');
+  if(gradeOverride){
+    var bootstrap = "selectGrade('" + gradeOverride + "'); var _gb=document.getElementById('gradeBtn'); if(_gb) _gb.style.display='none';";
+    var lastIdx = html.lastIndexOf("showScreen('grade');");
+    if(lastIdx !== -1){
+      html = html.slice(0, lastIdx) + bootstrap + html.slice(lastIdx + "showScreen('grade');".length);
+    }
+  }
   try{
+    if(_engQuizUrl) URL.revokeObjectURL(_engQuizUrl);
     var blob = new Blob([html], {type:'text/html'});
     _engQuizUrl = URL.createObjectURL(blob);
+    _engQuizGrade = gradeOverride;
     fr.src = _engQuizUrl;
   }catch(e){ console.warn('quiz load failed', e); }
 }
 function startEnglish() {
   ['eng-units','eng-modes','eng-game','eng-result'].forEach(function(id){ var el=document.getElementById(id); if(el) el.classList.add('hidden'); });
   var fr=document.getElementById('engQuizFrame'); if(fr) fr.classList.remove('hidden');
-  loadEngQuizFrame();
+  loadEngQuizFrame(currentStudent && currentStudent.grade ? String(currentStudent.grade) : null);
   showScreen('screen-english');
 }
 // Bridge: embedded 맛있는 영어 quiz -> save records into this app (calendar/stats/teacher)
