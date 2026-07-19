@@ -387,7 +387,8 @@ h1,h2,h3,h4{margin:0;}
     </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:24px;">
       <button class="navbtn" id="publicClassBtn" style="background:var(--sky);color:#fff;padding:12px 24px;font-size:14px;">👥 반 친구들 기록 보기</button>
-      <button class="navbtn" id="teacherLoginBtn" style="background:var(--navy);color:#fff;padding:12px 24px;font-size:14px;">🔑 선생님 로그인</button>
+      <button class="navbtn" id="teacherLoginBtn5" style="background:var(--navy);color:#fff;padding:12px 24px;font-size:14px;">🔑 5학년 선생님 로그인</button>
+      <button class="navbtn" id="teacherLoginBtn6" style="background:var(--navy);color:#fff;padding:12px 24px;font-size:14px;">🔑 6학년 선생님 로그인</button>
     </div>
   </div>
 
@@ -440,10 +441,7 @@ h1,h2,h3,h4{margin:0;}
       <h1>선생님 대시보드 📊</h1>
       <p>5,6학년 학생들의 학습 현황을 한눈에 확인하세요.</p>
     </div>
-    <div style="display:flex;gap:8px;margin-bottom:16px;">
-      <button class="navbtn teacherGradeTab" id="teacherGradeTab5" data-grade="5" style="flex:1;">5학년</button>
-      <button class="navbtn teacherGradeTab" id="teacherGradeTab6" data-grade="6" style="flex:1;">6학년</button>
-    </div>
+    <div id="teacherGradeIndicator" style="background:var(--navy);color:#fff;font-weight:900;text-align:center;padding:10px;border-radius:12px;margin-bottom:16px;">5학년 선생님 모드</div>
     <div style="background:var(--white);border-radius:20px;padding:18px;box-shadow:var(--shadow-sm);margin-bottom:16px;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
         <label style="font-size:13px;font-weight:800;color:var(--ink-soft);">📅 날짜:</label>
@@ -831,7 +829,7 @@ function showScreen(id) {
   const isTeacherView = (id === 'screen-teacher' || id === 'screen-teacher-login');
   const isEntryView = (id === 'screen-students' || id === 'screen-student-login' || id === 'screen-teacher-login');
   document.getElementById('menuBtn').classList.toggle('hidden',
-    isEntryView || id === 'screen-menu' || isTeacherView);
+    isEntryView || id === 'screen-menu' || isTeacherView || id === 'screen-class');
   document.getElementById('homeBtn').classList.toggle('hidden', id === 'screen-students');
   document.getElementById('currentStudent').classList.toggle('hidden', !currentStudent && !isTeacherView);
   if (isTeacherView && id === 'screen-teacher') {
@@ -3694,10 +3692,13 @@ function jrSaveToCloud() {
       const existing = snapshot.val() || {};
       const students = existing.students || [];
       // Update or insert 3rd grade students
-      const my3rdIds = new Set(STUDENTS.map(s => s.name));
-      const others = students.filter(s => !my3rdIds.has(s.nm) || s.gr !== '3');
-      const my3rd = jrData.map(s => ({gr: '3', nm: s.nm, gd: '', ms: s.ms}));
-      const merged = [...others, ...my3rd];
+      const myIds = new Set(STUDENTS.map(s => s.name));
+      const others = students.filter(s => !myIds.has(s.nm));
+      const mine = jrData.map(s => {
+        const st = STUDENTS.find(x => x.id === s.sid);
+        return {gr: String(st ? st.grade : ''), nm: s.nm, gd: '', ms: s.ms};
+      });
+      const merged = [...others, ...mine];
       const data = {v: 5, cM: jrCM, ts: jrMyLastSaveTs, students: merged};
       jumpRopeRef.set(data).catch(err => console.warn('jr save failed', err));
     });
@@ -3711,7 +3712,7 @@ jumpRopeRef.on('value', (snapshot) => {
   // Extract 3rd grade students matching our list
   data.students.forEach(ld => {
     const student = STUDENTS.find(s => s.name === ld.nm);
-    if (student && ld.gr === '3') {
+    if (student) {
       const ex = jrData.find(x => x.sid === student.id);
       if (ex) ex.ms = ld.ms || [];
     }
@@ -4161,8 +4162,6 @@ function styleGradeTabs(prefix, activeGrade){
 }
 document.getElementById('classGradeTab5').addEventListener('click', () => { classGradeFilter = 5; styleGradeTabs('classGradeTab', 5); renderClassRanking(); });
 document.getElementById('classGradeTab6').addEventListener('click', () => { classGradeFilter = 6; styleGradeTabs('classGradeTab', 6); renderClassRanking(); });
-document.getElementById('teacherGradeTab5').addEventListener('click', () => { teacherGradeFilter = 5; styleGradeTabs('teacherGradeTab', 5); renderTeacherStatusTable(document.getElementById('teacherDatePicker').value || todayStr()); renderTeacherOverallTable(); renderTeacherStreakTable(); renderTeacherPasswordTable(); });
-document.getElementById('teacherGradeTab6').addEventListener('click', () => { teacherGradeFilter = 6; styleGradeTabs('teacherGradeTab', 6); renderTeacherStatusTable(document.getElementById('teacherDatePicker').value || todayStr()); renderTeacherOverallTable(); renderTeacherStreakTable(); renderTeacherPasswordTable(); });
 
 function renderClassRanking() {
   const stats = STUDENTS.filter(s => s.grade === classGradeFilter).map(s => {
@@ -4214,7 +4213,16 @@ teacherPwRef.on('value', (snapshot) => {
   teacherPassword = (val && typeof val === 'string' && val.length > 0) ? String(val) : DEFAULT_TEACHER_PASSWORD;
 });
 
-document.getElementById('teacherLoginBtn').addEventListener('click', () => {
+let pendingTeacherGrade = 5;
+document.getElementById('teacherLoginBtn5').addEventListener('click', () => {
+  pendingTeacherGrade = 5;
+  document.getElementById('teacherPwInput').value = '';
+  document.getElementById('teacherPwErr').style.display = 'none';
+  showScreen('screen-teacher-login');
+  setTimeout(() => { document.getElementById('teacherPwInput').focus(); }, 100);
+});
+document.getElementById('teacherLoginBtn6').addEventListener('click', () => {
+  pendingTeacherGrade = 6;
   document.getElementById('teacherPwInput').value = '';
   document.getElementById('teacherPwErr').style.display = 'none';
   showScreen('screen-teacher-login');
@@ -4243,8 +4251,8 @@ document.getElementById('teacherPwInput').addEventListener('keydown', (e) => {
 });
 
 function openTeacherDashboard() {
-  teacherGradeFilter = 5;
-  styleGradeTabs('teacherGradeTab', 5);
+  teacherGradeFilter = pendingTeacherGrade;
+  document.getElementById('teacherGradeIndicator').textContent = teacherGradeFilter + '학년 선생님 모드';
   const today = todayStr();
   document.getElementById('teacherDatePicker').value = today;
   renderTeacherStatusTable(today);
@@ -4334,6 +4342,9 @@ function renderTeacherOverallTable() {
       </td>
       <td style="text-align:center;padding:10px 8px;border-bottom:1px solid var(--cream-2);font-weight:800;">${jrSess}회</td>
       <td style="text-align:center;padding:10px 8px;border-bottom:1px solid var(--cream-2);font-weight:800;color:var(--sky);">${daysActive.size}일</td>
+      <td style="text-align:center;padding:10px 8px;border-bottom:1px solid var(--cream-2);">
+        <button class="navbtn" style="background:#C62828;color:#fff;padding:6px 10px;font-size:11px;" onclick="resetStudentRecords('${s.id}','${s.name}')">초기화</button>
+      </td>
     </tr>`;
   }).join('');
 
@@ -4345,11 +4356,26 @@ function renderTeacherOverallTable() {
           <th style="text-align:center;padding:10px 8px;font-weight:900;font-size:12px;color:var(--ink-soft);">🍽️ 영어</th>
           <th style="text-align:center;padding:10px 8px;font-weight:900;font-size:12px;color:var(--ink-soft);">🏃 줄넘기</th>
           <th style="text-align:center;padding:10px 8px;font-weight:900;font-size:12px;color:var(--ink-soft);">활동일</th>
+          <th style="text-align:center;padding:10px 8px;font-weight:900;font-size:12px;color:var(--ink-soft);">개별 초기화</th>
         </tr>
       </thead>
       <tbody>${rows}</tbody>
     </table>
   `;
+}
+
+function resetStudentRecords(studentId, studentName){
+  if (!confirm('⚠️ ' + studentName + ' 학생의 모든 학습 기록(영어·줄넘기)을 삭제할까요?\n이 작업은 되돌릴 수 없어요!')) return;
+  const jrEntry = jrData.find(j => j.sid === studentId);
+  if (jrEntry) jrEntry.ms = [];
+  Promise.all([
+    recordsRef.child(studentId).remove(),
+    jrSaveToCloud()
+  ]).then(() => {
+    renderTeacherOverallTable();
+    renderTeacherStatusTable(document.getElementById('teacherDatePicker').value || todayStr());
+    renderTeacherStreakTable();
+  }).catch(err => alert('초기화 실패: ' + err.message));
 }
 
 function renderTeacherStreakTable() {
@@ -4524,7 +4550,7 @@ document.getElementById('teacherResetBtn').addEventListener('click', () => {
   const msgEl = document.getElementById('teacherResetMsg');
   const firstConfirm = confirm(
     '⚠️ 정말 모든 학습 기록을 삭제할까요?\n\n' +
-    '- 영어/구구단 기록: 전부 삭제\n' +
+    '- 영어 기록: 전부 삭제\n' +
     '- 줄넘기 기록: 전부 삭제\n' +
     '- 학생/선생님 비밀번호: 유지\n\n' +
     '이 작업은 되돌릴 수 없어요!'
