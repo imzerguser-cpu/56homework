@@ -368,10 +368,23 @@ h1,h2,h3,h4{margin:0;}
   <!-- SCREEN 0: Student selection -->
   <div id="screen-students">
     <div class="hero">
-      <h1>여름방학 학습장<br>이름을 선택하세요! ✨</h1>
-      <p>영어, 줄넘기까지! 매일매일 조금씩 공부하며 실력을 쌓아봐요.</p>
+      <h1 id="studentsHeroTitle">여름방학 학습장<br>학년을 선택하세요! ✨</h1>
+      <p id="studentsHeroSub">5학년과 6학년 중 하나를 골라주세요.</p>
     </div>
-    <div class="student-grid" id="studentGrid"></div>
+    <div class="student-grid" id="gradePickGrid">
+      <button class="studentcard" data-grade="5">
+        <div class="avatar">5️⃣</div>
+        <div class="name">5학년</div>
+      </button>
+      <button class="studentcard" data-grade="6">
+        <div class="avatar">6️⃣</div>
+        <div class="name">6학년</div>
+      </button>
+    </div>
+    <div id="studentPickWrap" class="hidden">
+      <button class="navbtn" id="backToGradeBtn" style="margin-bottom:14px;">← 학년 다시 선택</button>
+      <div class="student-grid" id="studentGrid"></div>
+    </div>
     <div style="display:flex;gap:10px;flex-wrap:wrap;justify-content:center;margin-top:24px;">
       <button class="navbtn" id="publicClassBtn" style="background:var(--sky);color:#fff;padding:12px 24px;font-size:14px;">👥 반 친구들 기록 보기</button>
       <button class="navbtn" id="teacherLoginBtn" style="background:var(--navy);color:#fff;padding:12px 24px;font-size:14px;">🔑 선생님 로그인</button>
@@ -834,21 +847,43 @@ document.getElementById('homeBtn').addEventListener('click', () => {
   currentStudent = null;
   document.getElementById('currentStudent').textContent = '';
   document.getElementById('currentStudent').classList.add('hidden');
+  renderGradePick();
   showScreen('screen-students');
 });
+
+// ----- GRADE SELECTION (5학년 / 6학년) -----
+let selectedGrade = null;
+function renderGradePick() {
+  selectedGrade = null;
+  document.getElementById('gradePickGrid').classList.remove('hidden');
+  document.getElementById('studentPickWrap').classList.add('hidden');
+  document.getElementById('studentsHeroTitle').innerHTML = '여름방학 학습장<br>학년을 선택하세요! ✨';
+  document.getElementById('studentsHeroSub').textContent = '5학년과 6학년 중 하나를 골라주세요.';
+}
+function selectGrade(g) {
+  selectedGrade = g;
+  document.getElementById('gradePickGrid').classList.add('hidden');
+  document.getElementById('studentPickWrap').classList.remove('hidden');
+  document.getElementById('studentsHeroTitle').innerHTML = `${g}학년<br>이름을 선택하세요! ✨`;
+  document.getElementById('studentsHeroSub').textContent = '영어, 줄넘기까지! 매일매일 조금씩 공부하며 실력을 쌓아봐요.';
+  renderStudents();
+}
+document.querySelectorAll('#gradePickGrid .studentcard').forEach(btn => {
+  btn.addEventListener('click', () => selectGrade(Number(btn.dataset.grade)));
+});
+document.getElementById('backToGradeBtn').addEventListener('click', renderGradePick);
 
 // ----- STUDENT SELECTION -----
 function renderStudents() {
   const grid = document.getElementById('studentGrid');
   grid.innerHTML = '';
-  STUDENTS.forEach(s => {
+  STUDENTS.filter(s => s.grade === selectedGrade).forEach(s => {
     const card = document.createElement('button');
     card.className = 'studentcard';
     card.innerHTML = `
       <div class="avatar">${s.emoji}</div>
       <div class="no">${s.no}번</div>
       <div class="name">${s.name}</div>
-      <div class="gradeTag" style="font-size:10px;color:var(--ink-soft);font-weight:700;">${s.grade}학년</div>
     `;
     card.addEventListener('click', () => selectStudent(s));
     grid.appendChild(card);
@@ -4129,7 +4164,7 @@ function renderClassRanking() {
 /* ================================================================
    TEACHER LOGIN + DASHBOARD MODULE
 ================================================================ */
-const DEFAULT_TEACHER_PASSWORD = '260301';
+const DEFAULT_TEACHER_PASSWORD = '2026';
 let teacherPassword = DEFAULT_TEACHER_PASSWORD;
 
 // Listen for teacher password changes in Firebase
@@ -4496,7 +4531,7 @@ jumpRopeRef.on('value', refreshDynamicViews);
 /* ================================================================
    INITIALIZATION
 ================================================================ */
-renderStudents();
+renderGradePick();
 showScreen('screen-students');
 
 </script>
