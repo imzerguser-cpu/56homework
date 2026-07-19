@@ -5262,10 +5262,8 @@ const MODE_META = [
   {id:1, color:'var(--coral)', title:'그림 보고 영어로 말하기', titleEn:'Picture → Say the Word', desc:'사진만 보고 영어 단어를 말해보세요', tag:'단어'},
   {id:2, color:'var(--mustard-dark)', title:'그림+단어+문장 읽기', titleEn:'Picture + Word + Sentence', desc:'사진과 글을 보며 영어로 소리 내어 읽어요', tag:'단어+문장'},
   {id:3, color:'var(--green)', title:'영어 보고 읽기', titleEn:'Read the English Aloud', desc:'그림 없이 영어 글자만 보고 읽어보세요', tag:'단어+문장'},
-  {id:4, color:'#B15CFF', title:'한글 보고 영어로 말하기', titleEn:'Korean → Say in English', desc:'한글 뜻을 보고 영어로 바꿔 말해요', tag:'한→영'},
-  {id:5, color:'#3C9EE8', title:'영어 보고 한국어로 말하기', titleEn:'English → Say in Korean', desc:'영어를 보고 한국어 뜻을 말해요', tag:'영→한'},
-  {id:6, color:'#E85D75', title:'대본 보고 영어로 말하기', titleEn:'Script(Korean) → Say in English', desc:'대본 속 한국어 문장을 보고 영어로 말해요', tag:'대본 한→영'},
-  {id:7, color:'#2BB0A6', title:'영어 대본 보고 한국어로 말하기', titleEn:'Script(English) → Say in Korean', desc:'대본 속 영어 문장을 보고 한국어로 말해요', tag:'대본 영→한'},
+  {id:4, color:'#B15CFF', title:'한글 보고 영어로 말하기', titleEn:'Korean → Say in English', desc:'대본 속 한국어 문장을 보고 영어로 말해요', tag:'한→영'},
+  {id:5, color:'#3C9EE8', title:'영어 보고 한국어로 말하기', titleEn:'English → Say in Korean', desc:'대본 속 영어 문장을 보고 한국어로 말해요', tag:'영→한'},
 ];
 
 
@@ -5287,6 +5285,8 @@ let state = {
   micBlocked:false,
 };
 
+const TTS_OVERRIDES = { 'banh mi': 'bahn mee' };
+function ttsTextFor(word){ return TTS_OVERRIDES[word] || word; }
 function shuffle(arr){
   const a=arr.slice();
   for(let i=a.length-1;i>0;i--){
@@ -5304,7 +5304,7 @@ function buildPoolForMode(unitId, modeId){
   if(modeId===1){
     return shuffle(unit.words.map(w=>({
       type:'word', en:w.en, ko:w.ko, target:w.en, promptDisplay:'image',
-      img:w.mediaKey, listenAudioKey:(AUDIOS[w.mediaKey]?w.mediaKey:null), listenText:w.en, listenLang:'en-US'
+      img:w.mediaKey, listenAudioKey:(AUDIOS[w.mediaKey]?w.mediaKey:null), listenText:ttsTextFor(w.en), listenLang:'en-US'
     })));
   }
   if(modeId===2){
@@ -5319,7 +5319,7 @@ function buildPoolForMode(unitId, modeId){
       return {
         type:'word', en:w.en, ko:w.ko, sentenceEn:null,
         target:w.en, promptDisplay:'image+text', img:w.mediaKey,
-        listenAudioKey:(AUDIOS[w.mediaKey]?w.mediaKey:null), listenText:w.en, listenLang:'en-US'
+        listenAudioKey:(AUDIOS[w.mediaKey]?w.mediaKey:null), listenText:ttsTextFor(w.en), listenLang:'en-US'
       };
     }));
   }
@@ -5327,12 +5327,6 @@ function buildPoolForMode(unitId, modeId){
     return shuffle(buildMixedPool(unit, 'text-en'));
   }
   if(modeId===4){
-    return shuffle(buildMixedPool(unit, 'text-ko'));
-  }
-  if(modeId===5){
-    return shuffle(buildMixedPool(unit, 'text-en', true));
-  }
-  if(modeId===6){
     return shuffle((unit.scriptLines||[]).map(function(s){
       return {
         type:'sentence', en:s.en, ko:s.ko,
@@ -5341,7 +5335,7 @@ function buildPoolForMode(unitId, modeId){
       };
     }));
   }
-  if(modeId===7){
+  if(modeId===5){
     return shuffle((unit.scriptLines||[]).map(function(s){
       return {
         type:'sentence', en:s.en, ko:s.ko,
@@ -5359,7 +5353,7 @@ function buildMixedPool(unit, promptDisplay, targetIsKo){
     target: targetIsKo ? w.ko : w.en,
     promptDisplay,
     listenAudioKey: (!targetIsKo && AUDIOS[w.mediaKey]) ? w.mediaKey : null,
-    listenText: targetIsKo ? w.ko : w.en,
+    listenText: targetIsKo ? w.ko : ttsTextFor(w.en),
     listenLang: targetIsKo ? 'ko-KR' : 'en-US'
   }));
   const exprItems = unit.expressions.map(s=>({
@@ -5718,6 +5712,17 @@ function homophoneMatch(a, b){
   const group = HOMOPHONE_MAP[a];
   return !!group && group.includes(b);
 }
+// Rough syllable-count estimate (vowel-group count, with a silent-e adjustment).
+// Used to widen the speech-matching margin for one-syllable words, since
+// speech recognition tends to mis-hear these more than longer words.
+function countSyllables(word){
+  const w = word.toLowerCase().replace(/[^a-z]/g, '');
+  if(!w) return 0;
+  const groups = w.match(/[aeiouy]+/g) || [];
+  let count = groups.length;
+  if(w.endsWith('e') && count > 1) count--;
+  return Math.max(1, count);
+}
 
 function checkAnswer(transcript, item, lang){
   const target = item.target;
@@ -5738,7 +5743,13 @@ function checkAnswer(transcript, item, lang){
       // and check word-by-word in case the utterance has extra filler words.
       const tokens = nt.split(' ').filter(Boolean);
       if(homophoneMatch(ng, nt)) return true;
-      return tokens.some(tok=>homophoneMatch(ng, tok) || homophoneMatch(tok, ng));
+      if(tokens.some(tok=>homophoneMatch(ng, tok) || homophoneMatch(tok, ng))) return true;
+      // One-syllable words get an even wider margin: speech recognition
+      // frequently mis-hears these, so accept a close phonetic match too.
+      if(wc===1 && countSyllables(ng)<=1){
+        return tokens.some(tok=>bigramDice(tok, ng) >= 0.5);
+      }
+      return false;
     }
     return tokenOverlapRatio(nt, ng) >= 0.55;
   }
