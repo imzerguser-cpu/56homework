@@ -440,6 +440,10 @@ h1,h2,h3,h4{margin:0;}
       <h1>선생님 대시보드 📊</h1>
       <p>5,6학년 학생들의 학습 현황을 한눈에 확인하세요.</p>
     </div>
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button class="navbtn teacherGradeTab" id="teacherGradeTab5" data-grade="5" style="flex:1;">5학년</button>
+      <button class="navbtn teacherGradeTab" id="teacherGradeTab6" data-grade="6" style="flex:1;">6학년</button>
+    </div>
     <div style="background:var(--white);border-radius:20px;padding:18px;box-shadow:var(--shadow-sm);margin-bottom:16px;">
       <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-bottom:14px;">
         <label style="font-size:13px;font-weight:800;color:var(--ink-soft);">📅 날짜:</label>
@@ -658,6 +662,11 @@ h1,h2,h3,h4{margin:0;}
     <div class="hero" style="background:linear-gradient(135deg,var(--red) 0%,#E86885 100%);">
       <h1>우리반 랭킹 👥</h1>
       <p>우리반 5,6학년 친구들이 얼마나 많이 학습했는지 활동별로 확인해봐요!</p>
+    </div>
+
+    <div style="display:flex;gap:8px;margin-bottom:16px;">
+      <button class="navbtn classGradeTab" id="classGradeTab5" data-grade="5" style="flex:1;">5학년</button>
+      <button class="navbtn classGradeTab" id="classGradeTab6" data-grade="6" style="flex:1;">6학년</button>
     </div>
 
     <div class="rank-panel">
@@ -1203,12 +1212,16 @@ function startRecords() {
   showScreen('screen-records');
 }
 function startClassRecords() {
+  classGradeFilter = 5;
+  styleGradeTabs('classGradeTab', 5);
   renderClassRanking();
   showScreen('screen-class');
 }
 
 // Public class records button (visible from student selection screen, no login required)
 document.getElementById('publicClassBtn').addEventListener('click', () => {
+  classGradeFilter = 5;
+  styleGradeTabs('classGradeTab', 5);
   renderClassRanking();
   showScreen('screen-class');
 });
@@ -4135,8 +4148,24 @@ function renderRankRow(s, rank, meta, countVal, countUnit) {
   </div>`;
 }
 
+let classGradeFilter = 5;
+let teacherGradeFilter = 5;
+
+function styleGradeTabs(prefix, activeGrade){
+  [5,6].forEach(g => {
+    const btn = document.getElementById(prefix + g);
+    if (!btn) return;
+    if (g === activeGrade) { btn.style.background = 'var(--navy)'; btn.style.color = '#fff'; }
+    else { btn.style.background = 'var(--cream-2)'; btn.style.color = 'var(--ink)'; }
+  });
+}
+document.getElementById('classGradeTab5').addEventListener('click', () => { classGradeFilter = 5; styleGradeTabs('classGradeTab', 5); renderClassRanking(); });
+document.getElementById('classGradeTab6').addEventListener('click', () => { classGradeFilter = 6; styleGradeTabs('classGradeTab', 6); renderClassRanking(); });
+document.getElementById('teacherGradeTab5').addEventListener('click', () => { teacherGradeFilter = 5; styleGradeTabs('teacherGradeTab', 5); renderTeacherStatusTable(document.getElementById('teacherDatePicker').value || todayStr()); renderTeacherOverallTable(); renderTeacherStreakTable(); renderTeacherPasswordTable(); });
+document.getElementById('teacherGradeTab6').addEventListener('click', () => { teacherGradeFilter = 6; styleGradeTabs('teacherGradeTab', 6); renderTeacherStatusTable(document.getElementById('teacherDatePicker').value || todayStr()); renderTeacherOverallTable(); renderTeacherStreakTable(); renderTeacherPasswordTable(); });
+
 function renderClassRanking() {
-  const stats = STUDENTS.map(s => {
+  const stats = STUDENTS.filter(s => s.grade === classGradeFilter).map(s => {
     const sr = allRecords[s.id] || {};
     let engSess = 0;
     let engDays = new Set();
@@ -4214,6 +4243,8 @@ document.getElementById('teacherPwInput').addEventListener('keydown', (e) => {
 });
 
 function openTeacherDashboard() {
+  teacherGradeFilter = 5;
+  styleGradeTabs('teacherGradeTab', 5);
   const today = todayStr();
   document.getElementById('teacherDatePicker').value = today;
   renderTeacherStatusTable(today);
@@ -4238,7 +4269,7 @@ document.getElementById('teacherToday').addEventListener('click', () => {
 });
 
 function renderTeacherStatusTable(dateStr) {
-  const rows = STUDENTS.map(s => {
+  const rows = STUDENTS.filter(s => s.grade === teacherGradeFilter).map(s => {
     const acts = studentActivitiesOnDate(s.id, dateStr);
     const eng = acts.has('english') ? '✅' : '❌';
     const jr = acts.has('jumprope') ? '✅' : '❌';
@@ -4271,7 +4302,7 @@ function renderTeacherStatusTable(dateStr) {
 }
 
 function renderTeacherOverallTable() {
-  const rows = STUDENTS.map(s => {
+  const rows = STUDENTS.filter(s => s.grade === teacherGradeFilter).map(s => {
     const sr = allRecords[s.id] || {};
     let engSess = 0, engCorrect = 0, engTotal = 0;
     let daysActive = new Set();
@@ -4322,7 +4353,7 @@ function renderTeacherOverallTable() {
 }
 
 function renderTeacherStreakTable() {
-  const rows = STUDENTS.map(s => {
+  const rows = STUDENTS.filter(s => s.grade === teacherGradeFilter).map(s => {
     const streak = calcStreak(s.id);
     const medal = streakMedal(streak);
     return {student: s, streak, medal};
@@ -4345,7 +4376,7 @@ let editingPwFor = null; // studentId currently being edited
 function renderTeacherPasswordTable() {
   const container = document.getElementById('teacherPasswordTable');
   if (!container) return;
-  const rows = STUDENTS.map(s => {
+  const rows = STUDENTS.filter(s => s.grade === teacherGradeFilter).map(s => {
     const pw = studentPasswords[s.id] || DEFAULT_STUDENT_PW[s.id];
     if (editingPwFor === s.id) {
       return `<div style="display:flex;align-items:center;gap:10px;padding:12px;border-bottom:1px solid var(--cream-2);">
