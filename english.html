@@ -622,6 +622,23 @@ const GRADE_IDS = Object.keys(GRADES); // ["3","4"]
   });
 })();
 
+// ----- [ADDED] review units: combine lessons into 1학기/2학기/전체 복습 units -----
+(function addReviewUnits(){
+  Object.keys(GRADES).forEach(function(gid){
+    var units = GRADES[gid].units;
+    function combine(ids){
+      var words=[], exprs=[], scriptLines=[];
+      ids.forEach(function(id){ var u=units[id]; if(!u) return; words=words.concat(u.words); exprs=exprs.concat(u.expressions); scriptLines=scriptLines.concat(u.scriptLines||[]); });
+      return {words:words, expressions:exprs, scriptLines:scriptLines};
+    }
+    var c1=combine([1,2,3,4,5,6]), c2=combine([7,8,9,10,11,12]), c3=combine([1,2,3,4,5,6,7,8,9,10,11,12]);
+    var gl = (GRADES[gid].label||(gid+'학년'));
+    units[101]={review:true, label:'1학기 종합 복습', titleEn:'Review 1 · Lessons 1-6', words:c1.words, expressions:c1.expressions, scriptLines:c1.scriptLines};
+    units[102]={review:true, label:'2학기 종합 복습', titleEn:'Review 2 · Lessons 7-12', words:c2.words, expressions:c2.expressions, scriptLines:c2.scriptLines};
+    units[103]={review:true, label:gl+' 전체 종합 복습', titleEn:'Review All · Lessons 1-12', words:c3.words, expressions:c3.expressions, scriptLines:c3.scriptLines};
+  });
+})();
+
 function currentUnitsData(){
   return GRADES[state.currentGrade].units;
 }
@@ -794,17 +811,29 @@ function renderUnitList(){
   unitListEl.innerHTML = '';
   ids.forEach((uid, i)=>{
     const unit = unitsData[uid];
-    const color = UNIT_COLORS[i % UNIT_COLORS.length];
+    const isReview = !!unit.review;
+    const color = isReview ? '#8A5CF6' : UNIT_COLORS[i % UNIT_COLORS.length];
     const card = document.createElement('div');
     card.className = 'listcard';
-    card.innerHTML = `
-      <div class="num" style="background:${color}">${uid}</div>
-      <div class="body">
-        <h3>Lesson ${uid} <span class="titleEn">${unit.titleEn}</span></h3>
-        <p>단어 ${unit.words.length}개 · 표현 ${unit.expressions.length}개</p>
-      </div>
-      <div class="tag" style="background:${color}">L${uid}</div>
-    `;
+    if(isReview){
+      card.innerHTML = `
+        <div class="num" style="background:${color}">📚</div>
+        <div class="body">
+          <h3>${unit.label} <span class="titleEn">${unit.titleEn}</span></h3>
+          <p>단어 ${unit.words.length}개 · 표현 ${unit.expressions.length}개 모아 풀기</p>
+        </div>
+        <div class="tag" style="background:${color}">복습</div>
+      `;
+    } else {
+      card.innerHTML = `
+        <div class="num" style="background:${color}">${uid}</div>
+        <div class="body">
+          <h3>Lesson ${uid} <span class="titleEn">${unit.titleEn}</span></h3>
+          <p>단어 ${unit.words.length}개 · 표현 ${unit.expressions.length}개</p>
+        </div>
+        <div class="tag" style="background:${color}">L${uid}</div>
+      `;
+    }
     card.addEventListener('click', ()=>selectUnit(uid));
     unitListEl.appendChild(card);
   });
@@ -819,8 +848,8 @@ const unitHeroTitleEl = document.getElementById('unitHeroTitle');
 
 function renderUnitMenu(){
   const unit = currentUnitsData()[state.currentUnit];
-  unitChipEl.textContent = `Lesson ${state.currentUnit}`;
-  unitHeroTitleEl.textContent = unit.titleEn;
+  unitChipEl.textContent = unit.review ? '복습' : `Lesson ${state.currentUnit}`;
+  unitHeroTitleEl.textContent = unit.review ? unit.label : unit.titleEn;
   modeListEl.innerHTML = '';
   MODE_META.forEach(m=>{
     const card = document.createElement('div');
